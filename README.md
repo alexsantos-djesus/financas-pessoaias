@@ -27,4 +27,11 @@ Ajudar usuários a controlar suas finanças pessoais de forma prática e segura.
 
 1. Clone o repositório:  
    ```bash
-   git clone https://github.com/seu-usuario/financas-pessoais.git 
+   git clone https://github.com/seu-usuario/financas-pessoais.git
+
+2. Importe o banco de dados (financas_pessoais.sql)
+3. Configure as credenciais em includes/db.php
+4. Acesse a pasta no servidor local (XAMPP, WAMP ou LAMP)
+
+## 📝 Licença
+MIT License - veja em LICENSE
