@@ -9,31 +9,27 @@ if (!isset($_SESSION['usuario_id'])) {
 }
 
 $usuario_id = $_SESSION['usuario_id'];
+$id = $_GET['id'] ?? null;
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $id = $_POST['id'] ?? null;
+if (!$id) {
+    $_SESSION['mensagem'] = ['tipo' => 'error', 'texto' => 'ID da transação não fornecido.'];
+    header("Location: dashboard.php");
+    exit;
+}
 
-    if (!$id) {
-        $_SESSION['mensagem'] = ['tipo' => 'error', 'texto' => 'ID da transação não fornecido.'];
-        header("Location: dashboard.php");
-        exit;
+try {
+    $stmt = $pdo->prepare("DELETE FROM transacoes WHERE id = ? AND usuario_id = ?");
+    $stmt->execute([$id, $usuario_id]);
+
+    if ($stmt->rowCount() > 0) {
+        $_SESSION['mensagem'] = ['tipo' => 'success', 'texto' => 'Transação excluída com sucesso.'];
+    } else {
+        $_SESSION['mensagem'] = ['tipo' => 'error', 'texto' => 'Não foi possível excluir a transação.'];
     }
-
-    try {
-        $stmt = $pdo->prepare("DELETE FROM transacoes WHERE id = ? AND usuario_id = ?");
-        $stmt->execute([$id, $usuario_id]);
-
-        if ($stmt->rowCount() > 0) {
-            $_SESSION['mensagem'] = ['tipo' => 'success', 'texto' => 'Transação excluída com sucesso.'];
-        } else {
-            $_SESSION['mensagem'] = ['tipo' => 'error', 'texto' => 'Não foi possível excluir a transação.'];
-        }
-    } catch (Exception $e) {
-        $_SESSION['mensagem'] = ['tipo' => 'error', 'texto' => 'Erro ao excluir transação: ' . $e->getMessage()];
-    }
-} else {
-    $_SESSION['mensagem'] = ['tipo' => 'error', 'texto' => 'Acesso inválido.'];
+} catch (Exception $e) {
+    $_SESSION['mensagem'] = ['tipo' => 'error', 'texto' => 'Erro ao excluir transação: ' . $e->getMessage()];
 }
 
 header("Location: dashboard.php");
 exit;
+?>

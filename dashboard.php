@@ -10,7 +10,8 @@ if (!isset($_SESSION['usuario_id'])) {
 $usuario_id = $_SESSION['usuario_id'];
 
 // Função para calcular subtotal por tipo
-function getSubtotal($pdo, $usuario_id, $tipo) {
+function getSubtotal($pdo, $usuario_id, $tipo)
+{
     $stmt = $pdo->prepare("SELECT SUM(valor) AS total FROM transacoes WHERE usuario_id = ? AND status != 'previsto' AND tipo = ?");
     $stmt->execute([$usuario_id, $tipo]);
     return $stmt->fetch()['total'] ?? 0;
@@ -29,6 +30,7 @@ if (isset($_SESSION['mensagem'])) {
 
 <!DOCTYPE html>
 <html lang="pt-br">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -40,9 +42,20 @@ if (isset($_SESSION['mensagem'])) {
             background-color: #f8f9fa;
         }
 
-        .status-realizado { background-color: #d4edda; color: #155724; }
-        .status-pendente  { background-color: #fff3cd; color: #856404; }
-        .status-previsto  { background-color: #f8d7da; color: #721c24; }
+        .status-realizado {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .status-pendente {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .status-previsto {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
 
         .table-responsive {
             max-height: 400px;
@@ -53,7 +66,7 @@ if (isset($_SESSION['mensagem'])) {
             border: 1px solid #ccc;
             padding: 20px;
             border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         }
 
         @media (max-width: 576px) {
@@ -64,6 +77,7 @@ if (isset($_SESSION['mensagem'])) {
         }
     </style>
 </head>
+
 <body>
     <div class="container py-5 my-5 text-center">
         <h1 class="mb-4">Dashboard - Finanças Pessoais</h1>
@@ -125,7 +139,12 @@ if (isset($_SESSION['mensagem'])) {
                         </thead>
                         <tbody id="transacoes-table">
                             <?php
-                            $stmt = $pdo->prepare("SELECT * FROM transacoes WHERE usuario_id = ?");
+                            $stmt = $pdo->prepare("
+                                    SELECT t.*, c.nome AS categoria_nome 
+                                    FROM transacoes t
+                                    LEFT JOIN categorias c ON t.categoria_id = c.id
+                                    WHERE t.usuario_id = ?
+                                ");
                             $stmt->execute([$usuario_id]);
 
                             while ($transacao = $stmt->fetch()) {
@@ -142,6 +161,7 @@ if (isset($_SESSION['mensagem'])) {
                                 echo "<td>" . htmlspecialchars($transacao['descricao']) . "</td>";
                                 echo "<td>R$ " . number_format($transacao['valor'], 2, ',', '.') . "</td>";
                                 echo "<td>" . htmlspecialchars($transacao['data']) . "</td>";
+                                echo "<td>" . htmlspecialchars($transacao['categoria_nome'] ?? 'Sem categoria') . "</td>";
                                 echo "<td>" . ($transacao['status'] === 'realizado' ? 'Realizado ✅' : ($transacao['status'] === 'pendente' ? 'Pendente ⚠️' : 'Previsto ⏰')) . "</td>";
                                 echo "<td>
                                         <button class='btn btn-sm btn-primary edit-transacao' data-id='{$transacao['id']}'>Editar</button>
@@ -161,6 +181,13 @@ if (isset($_SESSION['mensagem'])) {
             <button type="button" class="btn btn-success btn-lg" data-bs-toggle="modal" data-bs-target="#addTransacaoModal">
                 Adicionar Transação
             </button>
+            <button type="button" class="btn btn-outline-primary btn-lg" id="btn-carregar-categorias">
+                Gerenciar Categorias
+            </button>
+
+            <div id="area-categorias" style="display: none;">
+                <div id="conteudo-categorias"></div>
+            </div>
         </div>
     </div>
 
@@ -201,6 +228,20 @@ if (isset($_SESSION['mensagem'])) {
                             <select class="form-select" id="tipo_add" name="tipo" required>
                                 <option value="receita">Receita</option>
                                 <option value="despesa">Despesa</option>
+                            </select>
+                        </div>
+                        <?php
+                        $stmt = $pdo->prepare("SELECT * FROM categorias WHERE usuario_id = ?");
+                        $stmt->execute([$_SESSION['usuario_id']]);
+                        $categorias = $stmt->fetchAll();
+                        ?>
+                        <div class="mb-3">
+                            <label for="categoria_add" class="form-label">Categoria</label>
+                            <select class="form-select" id="categoria_add" name="categoria_id">
+                                <option value="">Selecione uma categoria</option>
+                                <?php foreach ($categorias as $cat): ?>
+                                    <option value="<?= $cat['id'] ?>"><?= htmlspecialchars($cat['nome']) ?></option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                     </div>
@@ -252,6 +293,20 @@ if (isset($_SESSION['mensagem'])) {
                                 <option value="despesa">Despesa</option>
                             </select>
                         </div>
+                        <?php
+                        $stmt = $pdo->prepare("SELECT * FROM categorias WHERE usuario_id = ?");
+                        $stmt->execute([$_SESSION['usuario_id']]);
+                        $categorias_edit = $stmt->fetchAll();
+                        ?>
+                        <div class="mb-3">
+                            <label for="categoria_edit" class="form-label">Categoria</label>
+                            <select class="form-select" id="categoria_edit" name="categoria_id">
+                                <option value="">Selecione uma categoria</option>
+                                <?php foreach ($categorias_edit as $cat): ?>
+                                    <option value="<?= $cat['id'] ?>"><?= htmlspecialchars($cat['nome']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -267,16 +322,18 @@ if (isset($_SESSION['mensagem'])) {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
-        $(document).ready(function () {
+        $(document).ready(function() {
             // Abrir modal de edição
-            $('.edit-transacao').on('click', function () {
+            $('.edit-transacao').on('click', function() {
                 const transacaoId = $(this).data('id');
 
                 $.ajax({
                     url: 'get_transacao.php',
                     type: 'GET',
-                    data: { id: transacaoId },
-                    success: function (response) {
+                    data: {
+                        id: transacaoId
+                    },
+                    success: function(response) {
                         const transacao = JSON.parse(response);
 
                         $('#edit_transacao_id').val(transacao.id);
@@ -288,14 +345,14 @@ if (isset($_SESSION['mensagem'])) {
 
                         $('#editTransacaoModal').modal('show');
                     },
-                    error: function () {
+                    error: function() {
                         alert('Erro ao carregar dados da transação.');
                     }
                 });
             });
 
             // Enviar formulário de edição via AJAX
-            $('#editTransacaoForm').on('submit', function (e) {
+            $('#editTransacaoForm').on('submit', function(e) {
                 e.preventDefault();
 
                 const formData = {
@@ -311,7 +368,7 @@ if (isset($_SESSION['mensagem'])) {
                     url: 'editar_transacao.php',
                     type: 'POST',
                     data: formData,
-                    success: function (response) {
+                    success: function(response) {
                         const result = JSON.parse(response);
 
                         if (result.success) {
@@ -338,29 +395,32 @@ if (isset($_SESSION['mensagem'])) {
                             alert(result.error || 'Erro desconhecido ao atualizar transação.');
                         }
                     },
-                    error: function () {
+                    error: function() {
                         alert('Erro ao comunicar com o servidor.');
                     }
                 });
             });
 
             // Enviar formulário de adição via AJAX
-            $('#addTransacaoForm').on('submit', function (e) {
+            $('#addTransacaoForm').on('submit', function(e) {
                 e.preventDefault();
+
+                const categoria_id = $('#categoria_add').val(); // Pega o valor do select
 
                 const formData = {
                     descricao: $('#descricao_add').val(),
                     valor: $('#valor_add').val(),
                     data: $('#data_add').val(),
                     status: $('#status_add').val(),
-                    tipo: $('#tipo_add').val()
+                    tipo: $('#tipo_add').val(),
+                    categoria_id: categoria_id // Adiciona a categoria
                 };
 
                 $.ajax({
                     url: 'processar_adicao_ajax.php',
                     type: 'POST',
                     data: formData,
-                    success: function (response) {
+                    success: function(response) {
                         const result = JSON.parse(response);
 
                         if (result.success) {
@@ -380,14 +440,16 @@ if (isset($_SESSION['mensagem'])) {
                             $('#transacoes-table').append(newRow);
 
                             // Re-inicializa o evento do botão Editar para a nova transação
-                            $(newRow).find('.edit-transacao').on('click', function () {
+                            $(newRow).find('.edit-transacao').on('click', function() {
                                 const transacaoId = $(this).data('id');
 
                                 $.ajax({
                                     url: 'get_transacao.php',
                                     type: 'GET',
-                                    data: { id: transacaoId },
-                                    success: function (response) {
+                                    data: {
+                                        id: transacaoId
+                                    },
+                                    success: function(response) {
                                         const transacao = JSON.parse(response);
 
                                         $('#transacao_id_edit').val(transacao.id);
@@ -399,7 +461,7 @@ if (isset($_SESSION['mensagem'])) {
 
                                         $('#editTransacaoModal').modal('show');
                                     },
-                                    error: function () {
+                                    error: function() {
                                         alert('Erro ao carregar dados da transação.');
                                     }
                                 });
@@ -412,12 +474,40 @@ if (isset($_SESSION['mensagem'])) {
                             alert(result.error || 'Erro ao adicionar a transação.');
                         }
                     },
-                    error: function () {
+                    error: function() {
                         alert('Erro ao comunicar com o servidor.');
                     }
                 });
             });
         });
     </script>
+
+    <!-- Script para carregar categorias via AJAX -->
+    <script>
+        $(document).ready(function() {
+            $('#btn-carregar-categorias').on('click', function() {
+                const area = $('#area-categorias');
+
+                if (area.is(':visible')) {
+                    area.hide();
+                    return;
+                }
+
+                $.ajax({
+                    url: 'categorias/categorias_ajax.php',
+                    method: 'GET',
+                    success: function(response) {
+                        $('#area-categorias').html(response);
+                        area.show();
+                    },
+                    error: function(xhr, status, error) {
+                        alert('Erro ao carregar categorias.');
+                        console.error(xhr.responseText); // Mostra detalhes no console
+                    }
+                });
+            });
+        });
+    </script>
 </body>
+
 </html>
